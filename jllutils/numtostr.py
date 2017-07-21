@@ -1,8 +1,6 @@
 from __future__ import print_function
 import math
-import pdb
 
-# TODO: fix ordinal numbers so that only the last part of the number is ordinal (i.e. not "one hundredth seventieth-fifth")
 class _NumberName(object):
     def __init__(self):
         self.names = []
@@ -59,14 +57,20 @@ def _hundreds_str(num, and_sep=False, ordinal=False):
     if not isinstance(ordinal, bool):
         raise TypeError("ordinal must be a boolean")
 
-    if ordinal:
+    if ordinal and num % 100 == 0:
         hundred_str = "hundredth"
-        this_ones_teens = _ordinal_ones_teens
-        this_tens = _ordinal_tens
     else:
         hundred_str = "hundred"
-        this_ones_teens = _ones_teens
+
+    if ordinal and num % 10 == 0:
+        this_tens = _ordinal_tens
+    else:
         this_tens = _tens_names
+
+    if ordinal:
+        this_ones_teens = _ordinal_ones_teens
+    else:
+        this_ones_teens = _ones_teens
 
     if and_sep:
         sep = " and "
@@ -96,21 +100,57 @@ def _hundreds_str(num, and_sep=False, ordinal=False):
 
     return str_out
 
-def _stringify(num, comma_sep=False, and_sep=False, ordinal=False):
+def _am_i_last(curr_index, n10s):
     """
-    Returns a text representation of the number given
-    :param num: the number to represent, float or int
+    Determine if the current number is the last non-zero number in the powers of 10 to represent
+    :param n10s: the list of values for each three powers of ten in descending order, i.e. billions,
+    millions, thousand
+    :return: True if the current index is the last non-zero number, False otherwise
+    """
+    for i in range(curr_index+1, len(n10s)):
+        if n10s[i] != 0:
+            return False
+
+    return True
+
+def _stringify(num, comma_sep=False, and_sep=False, ordinal='no'):
+    """
+    Returns a text representation of the number given, internal method called by the external interfaces.
+    :param num: the number to represent, currently only integers permitted (positive or negative)
+    :param comma_sep: boolean (default False), whether commas should be included every three powers of ten, i.e.
+    "one thousand one hundred" or "one thousand, one hundred"
+    :param and_sep: boolean (default False), whether "and" should be included between the hundreds and tens/ones
+    of each three powers of 10, i.e. "three hundred ten" vs. "three hundred and ten", or "five hundred one" vs.
+    "five hundred and one".
+    :param ordinal: string (default 'no'), controls whether the number returned is a cardinal number (i.e. "one",
+    "two") or an ordinal number ("first", "second"). If set to 'last', only the very last number in the string will
+    be an ordinal, i.e. "one hundred ten thousand and eleventh". If set to 'all', each group of three powers of ten
+    will have the final part made an ordinal number, i.e. "one hundred ten thousandth and eleventh".
     :return: string, the text representation
     """
+    ##################
+    # Input checking #
+    ##################
+    if not isinstance(num, int):
+        raise TypeError('num must be an int')
+    if not isinstance(comma_sep, bool):
+        raise TypeError('comma_sep must be a boolean')
+    if not isinstance(and_sep, bool):
+        raise TypeError('and_sep must be a boolean')
+    if not isinstance(ordinal, str):
+        raise TypeError('ordinal must be a string')
 
-    if ordinal:
-        this_ones_teens = _ordinal_ones_teens
-        this_tens = _ordinal_tens
+    ordinal = ordinal.lower()
+    allowed_ordinal_vals = ('no', 'last', 'all')
+    if ordinal not in allowed_ordinal_vals:
+        raise ValueError('ordinal must be one of the strings: {}'.format(', '.join(allowed_ordinal_vals)))
+
+    if ordinal == 'all':
         this_pow_10 = _ordinal_pow_10
     else:
-        this_ones_teens = _ones_teens
-        this_tens = _tens_names
         this_pow_10 = _powers_of_10
+
+    sub_ordinal = False
 
     num_str = ""
     if comma_sep:
@@ -119,17 +159,30 @@ def _stringify(num, comma_sep=False, and_sep=False, ordinal=False):
         sep = " "
 
     # Split up the number into three digit components, i.e. 0-999, 1000-9999, etc.
-    num = abs(num)
+    if num < 0:
+        neg_string = 'negative '
+        num = abs(num)
+    else:
+        neg_string = ''
+
     if num == 0:
-        return this_ones_teens.value_name(0)
+        if ordinal:
+            _ordinal_ones_teens.value_name(0)
+        else:
+            return _ones_teens.value_name(0)
 
     p10_max = int(math.log10(num))
     p10s = [x for x in range(0, p10_max+1, 3)]
     p10s.reverse()
-    for p in p10s:
-        n10 = int((num % 10**(p + 3))/10**p)
+    n10s = [int((num % 10**(p + 3))/10**p) for p in p10s]
+    for i in range(len(p10s)):
+        p = p10s[i]
+        n10 = n10s[i]
         if n10 == 0:
             continue
+        elif ordinal != 'no' and _am_i_last(i, n10s):
+            this_pow_10 = _ordinal_pow_10
+            sub_ordinal = True
 
         # Do not add the separator the first time through
         # Also do not put a comma after the thousands if the
@@ -143,23 +196,59 @@ def _stringify(num, comma_sep=False, and_sep=False, ordinal=False):
             else:
                 num_str += sep
 
-        this_str = _hundreds_str(n10, and_sep=and_sep, ordinal=ordinal)
+        this_str = _hundreds_str(n10, and_sep=and_sep, ordinal=sub_ordinal)
         num_str += this_str
         if p > 0:
             num_str += " " + this_pow_10.value_name(p)
 
-    return num_str
+    return neg_string + num_str
 
 
 def cardinal_number(num, comma_sep=False, and_sep=False):
-    return _stringify(num, comma_sep=comma_sep, and_sep=and_sep, ordinal=False)
+    """
+    Convert an integer into a string representation as an cardinal number (i.e. one, two, etc.)
+    :arg num: the number (as an int) to make into a cardinal number string
+    :param comma_sep: boolean (default False), whether commas should be included every three powers of ten, i.e.
+    "one thousand one hundred" or "one thousand, one hundred"
+    :param and_sep: boolean (default False), whether "and" should be included between the hundreds and tens/ones
+    of each three powers of 10, i.e. "three hundred ten" vs. "three hundred and ten", or "five hundred one" vs.
+    "five hundred and one".
+    """
+    return _stringify(num, comma_sep=comma_sep, and_sep=and_sep, ordinal='no')
 
 
-def ordinal_number(num, comma_sep=False, and_sep=False):
-    return _stringify(num, comma_sep=comma_sep, and_sep=and_sep, ordinal=True)
+def ordinal_number(num, comma_sep=False, and_sep=False, all_ordinal=False):
+    """
+    Convert an integer into a string representation as an ordinal number (i.e. first, second, etc.)
+    :arg num: the number (as an int) to make into a cardinal number string
+    :param comma_sep: boolean (default False), whether commas should be included every three powers of ten, i.e.
+    "one thousand one hundredth" or "one thousand, one hundredth"
+    :param and_sep: boolean (default False), whether "and" should be included between the hundreds and tens/ones
+    of each three powers of 10, i.e. "three hundred tenth" vs. "three hundred and tenth", or "five hundred first" vs.
+    "five hundred and first".
+    :param all_ordinal: boolean (default False), if False, only the very last number in the string will be an
+    ordinal, i.e. "one hundred ten thousand and eleventh". If True, each group of three powers of ten will have
+    the final part made an ordinal number, i.e. "one hundred ten thousandth and eleventh".
+    """
+    if all_ordinal:
+        ord_arg = 'all'
+    else:
+        ord_arg = 'last'
+
+    return _stringify(num, comma_sep=comma_sep, and_sep=and_sep, ordinal=ord_arg)
 
 
 def repeat_number(num, comma_sep=False, and_sep=False):
+    """
+    Convert an integer into a string representation as an repeat number (i.e. once, twice, thrice; above 3 it just
+    returns "four times", "five times" etc.
+    :arg num: the number (as an int) to make into a cardinal number string
+    :param comma_sep: boolean (default False), whether commas should be included every three powers of ten, i.e.
+    "one thousand one hundred times" or "one thousand, one hundred times"
+    :param and_sep: boolean (default False), whether "and" should be included between the hundreds and tens/ones
+    of each three powers of 10, i.e. "three hundred ten times" vs. "three hundred and ten times", or "five hundred
+    one times" vs. "five hundred and one times".
+    """
     if num == 1:
         return "once"
     elif num == 2:
