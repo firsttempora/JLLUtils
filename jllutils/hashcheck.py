@@ -80,7 +80,7 @@ def get_args():
 
     args = parser.parse_args()
 
-    if len(args.directories) < 1:
+    if args.compare is None and len(args.directories) < 1:
         shell_error('At least one directory must be specified')
     else:
         for this_dir in args.directories:
