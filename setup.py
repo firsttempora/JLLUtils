@@ -11,5 +11,5 @@ setup(
     download_url='https://github.com/firsttempora/JLLUtils/tarball/{0}'.format(versionstr), # version must be a git tag
     keywords=['utility', 'general'],
     classifiers=[],
-    scripts=['jllutils/datecompare.py', 'jllutils/hashcheck.py']
+    scripts=['jllutils/datecompare.py', 'jllutils/hashcheck.py', 'jllutils/gitutils.py']
 )

@@ -45,3 +45,29 @@ def isequaln(A, B):
     A_masked = np.ma.masked_where(np.isnan(A), A)
     B_masked = np.ma.masked_where(np.isnan(B), B)
     return np.ma.allclose(A_masked, B_masked)
+
+def chrange(start, stop, step=1):
+    """
+    An iterator for a range of characters
+    :param start: the character for the beginning of the list
+    :param stop: the character for the end of the list. Unlike a normal range(), this is inclusive
+    :param step: the step between characters. Must be an integer
+    :return: an iterator over characters.
+    """
+
+    start_int = ord(start)
+    end_int = ord(stop)+1
+    for i in range(start_int, end_int):
+        yield chr(i)
+
+def flatten(iterable):
+    raise NotImplementedError('Still working on how to make this function work')
+    flist = []
+    try:
+        for item in iterable:
+            flist += flatten(item)
+    except TypeError:
+        # if iterable is not actually iterable
+        return iterable
+    else:
+        return flist

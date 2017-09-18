@@ -4,6 +4,7 @@ from __future__ import print_function
 import argparse
 import subprocess
 import os
+from pytui import uielements
 import sys
 
 import pdb
@@ -24,19 +25,13 @@ def filter_unlisted_in_file(list_file, extensions=None, log_file='gitfilter.log'
 def filter_unlisted(keep_files, extensions=None, log_file='gitfilter.log', git_dir='.', dry_run=False):
     files_to_remove = []
     keep_files = [_make_relative_to_git_dir(f, git_dir) for f in keep_files]
-    for root, dir_names, file_names in os.walk(git_dir):
-        try:
-            dir_names.remove('.git')
-        except ValueError:
-            pass
+    for git_file in _list_all_files_all_branches(git_dir):
 
-        for f in file_names:
-            _, file_ext = os.path.splitext(f)
+        git_file = _make_relative_to_git_dir(git_file, git_dir)
+        _, file_ext = os.path.splitext(git_file)
 
-            f_path = os.path.join(root, f)
-
-            if _make_relative_to_git_dir(f_path, git_dir) not in keep_files and (extensions is None or file_ext in extensions):
-                files_to_remove.append(f_path)
+        if git_file not in keep_files and (extensions is None or file_ext in extensions):
+            files_to_remove.append(git_file)
 
     _run_filter_files(files_to_remove, log_file=log_file, git_dir=git_dir, dry_run=dry_run)
 
@@ -73,7 +68,7 @@ def _run_filter_files(files_to_remove, log_file='gitfilter.log', git_dir='.', dr
             subprocess.Popen(cmd, cwd=git_dir, stdout=log, stderr=log, shell=True).communicate()
 
 
-def _make_relative_to_git_dir(path, git_dir):
+def _make_relative_to_git_dir(path, git_dir, ask=True):
     dir_contents = os.listdir(git_dir)
     path_pieces = path.split(os.path.sep)
     for piece in path_pieces:
@@ -81,17 +76,24 @@ def _make_relative_to_git_dir(path, git_dir):
             i = path_pieces.index(piece)
             return os.path.join(*path_pieces[i:])
 
-    raise ValueError('Could not make {} relative to Git directory {}'.format(path, git_dir))
+    err_msg = 'Could not make {} relative to Git directory {}'.format(path, git_dir)
+    if ask and uielements.user_input_yn('{}. Treat it as relative?'.format(err_msg)):
+        return path
+    else:
+        raise ValueError(err_msg)
 
 
 def _escape_spaces(list_str):
     return [s.replace(' ', '\ ') for s in list_str]
 
 
-def _iter_git_branches(git_dir='.'):
-    branches = subprocess.check_output(['git', 'for-each-ref', '--format=%(refname)', 'refs/heads']).splitlines()
+def _iter_git_branches(git_dir='.', short=False):
+    branches = subprocess.check_output(['git', 'for-each-ref', '--format=%(refname)', 'refs/heads'], cwd=git_dir).splitlines()
     for b in branches:
-        yield b
+        if short:
+            yield os.path.basename(b)
+        else:
+            yield b
 
 
 def _list_all_files_all_branches(git_dir='.'):
